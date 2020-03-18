@@ -28,7 +28,10 @@ LOGS = '/var/log/bigbluebutton/download/'
 source_dir = PATH + meetingId + "/"
 temp_dir = source_dir + 'temp/'
 target_dir = source_dir + 'download/'
-audio_path = 'audio/'
+
+#exception during creation of temp.mp3 -> fixed based in the changes from https://github.com/magiccampus/bbb-download
+#audio_path = 'audio/'
+audio_path = temp_dir + 'audio/'
 events_file = 'shapes.svg'
 LOGFILE = LOGS + meetingId + '.log'
 ffmpeg.set_logfile(LOGFILE)
@@ -51,61 +54,83 @@ def extract_timings(bbb_version):
             path = u'/usr/local/bigbluebutton/core/scripts/logo.png'
             j += 1
 
+        #print >> sys.stderr, "debug"
+        #
         in_times = str(image.getAttribute('in')).split(' ')
         out_times = image.getAttribute('out').split(' ')
+        
+        try:
+            temp = float(out_times[len(out_times) - 1])
 
-        temp = float(out_times[len(out_times) - 1])
-        if temp > total_length:
-            total_length = temp
+            if temp > total_length:
+                total_length = temp
 
-        occurrences = len(in_times)
-        for i in range(occurrences):
-            dictionary[float(in_times[i])] = temp_dir + str(path)
+            occurrences = len(in_times)
+            for i in range(occurrences):
+                dictionary[float(in_times[i])] = temp_dir + str(path)
 
+        except:
+            print >> sys.stderr, "Exception extract_timings"
+            print >> sys.stderr, str(image.getAttribute('in')).split(' ')
+            print >> sys.stderr, str(image.getAttribute('out')).split(' ')
+            print >> sys.stderr, "occurrences"
+            print >> sys.stderr, occurrences
+            print >> sys.stderr, "dictionary"
+            print >> sys.stderr, dictionary
+            print >> sys.stderr, "total_length"
+            print >> sys.stderr, total_length
+                        
     return dictionary, total_length
 
 
 def create_slideshow(dictionary, length, result, bbb_version):
-    video_list = 'video_list.txt'
-    f = open(video_list, 'w')
+    try:
+        video_list = 'video_list.txt'
+        f = open(video_list, 'w')
 
-    times = dictionary.keys()
-    times.sort()
+        times = dictionary.keys()
+        times.sort()
 
-    ffmpeg.webm_to_mp4(SOURCE_DESKSHARE, TMP_DESKSHARE_FILE)
+        ffmpeg.webm_to_mp4(SOURCE_DESKSHARE, TMP_DESKSHARE_FILE)
+    
+        print >> sys.stderr, "-=create_slideshow=-"
+        for i, t in enumerate(times):
+            print >> sys.stderr, (i, t)
 
-    print >> sys.stderr, "-=create_slideshow=-"
-    for i, t in enumerate(times):
-        # print >> sys.stderr, (i, t)
+            # if i < 1 and '2.0.0' > bbbversion:
+            #   continue
 
-        # if i < 1 and '2.0.0' > bbbversion:
-        #   continue
+            tmp_name = '%d.mp4' % i
+            tmp_ts_name = '%d.ts' % i
+            image = dictionary[t]
+            print >> sys.stderr, times
+            print >> sys.stderr, length
 
-        tmp_name = '%d.mp4' % i
-        tmp_ts_name = '%d.ts' % i
-        image = dictionary[t]
+            if i == len(times) - 1:
+                duration = length - t
+            else:
+                duration = times[i + 1] - t
 
-        if i == len(times) - 1:
-            duration = length - t
-        else:
-            duration = times[i + 1] - t
+            out_file = temp_dir + tmp_name
+            out_ts_file = temp_dir + tmp_ts_name
 
-        out_file = temp_dir + tmp_name
-        out_ts_file = temp_dir + tmp_ts_name
+            if "deskshare.png" in image:
+                print >> sys.stderr, (0, i, t, duration)
+                ffmpeg.trim_video_by_seconds(TMP_DESKSHARE_FILE, t, duration, out_file)
+                ffmpeg.mp4_to_ts(out_file, out_ts_file)
+            else:
+                print >> sys.stderr, (1, i, t, duration)
+                ffmpeg.create_video_from_image(image, duration, out_ts_file)
 
-        if "deskshare.png" in image:
-            print >> sys.stderr, (0, i, t, duration)
-            ffmpeg.trim_video_by_seconds(TMP_DESKSHARE_FILE, t, duration, out_file)
-            ffmpeg.mp4_to_ts(out_file, out_ts_file)
-        else:
-            print >> sys.stderr, (1, i, t, duration)
-            ffmpeg.create_video_from_image(image, duration, out_ts_file)
+            f.write('file ' + out_ts_file + '\n')
+        f.close()
 
-        f.write('file ' + out_ts_file + '\n')
-    f.close()
-
-    ffmpeg.concat_videos(video_list, result)
-    os.remove(video_list)
+        ffmpeg.concat_videos(video_list, result)
+        os.remove(video_list)
+    except:
+        print >> sys.stderr, "Exception create_slideshow"
+        print >> sys.stderr, dictionary.keys()
+        print >> sys.stderr, image
 
 
 def get_presentation_dims(presentation_name):
@@ -175,9 +200,10 @@ def prepare(bbb_version):
 
     if not os.path.exists('audio'):
         global audio_path
-        audio_path = temp_dir + 'audio/'
+        #audio_path = temp_dir + 'audio/'
         os.mkdir(audio_path)
-        ffmpeg.extract_audio_from_video('video/webcams.webm', audio_path + 'audio.ogg')
+        ffmpeg.extract_audio_from_video(source_dir + 'video/webcams.webm', audio_path + 'audio.ogg')
+
 
     shutil.copytree("presentation", temp_dir + "presentation")
     dictionary, length = extract_timings(bbb_version)
@@ -227,11 +253,18 @@ def serve_webcams():
     if os.path.exists('video/webcams.webm'):
         shutil.copy2('video/webcams.webm', './download/')
 
+#def overlay_videos(background_video):    
+ #   if os.path.exists('video/webcams.webm') && os.path.exists(background_video):    
+        
+
+
 
 def copy_mp4(result, dest):
     if os.path.exists(result):
         shutil.copy2(result, dest)
 
+def video_exists(file):
+    return os.path.exists(file)
 
 def zipdir(path):
     filename = meetingId + '.zip'
@@ -263,25 +296,59 @@ def main():
     print >> sys.stderr, "bbb_version: " + bbb_version
 
     os.chdir(source_dir)
-
-    dictionary, length, dims = prepare(bbb_version)
-
-    audio = audio_path + 'audio.ogg'
-    audio_trimmed = temp_dir + 'audio_trimmed.m4a'
-    result = target_dir + 'meeting.mp4'
-    slideshow = temp_dir + 'slideshow.mp4'
-
+    print >> sys.stderr, "Verifying record"
     try:
-        create_slideshow(dictionary, length, slideshow, bbb_version)
-        ffmpeg.trim_audio_start(dictionary, length, audio, audio_trimmed)
-        ffmpeg.mux_slideshow_audio(slideshow, audio_trimmed, result)
-        serve_webcams()
-        # zipdir('./download/')
-        copy_mp4(result, source_dir + meetingId + '.mp4')
+        if not video_exists(source_dir + meetingId + '_presentation.mp4'):
+            dictionary, length, dims = prepare(bbb_version)
+            audio = audio_path + 'audio.ogg'
+            audio_trimmed = temp_dir + 'audio_trimmed.m4a'
+            result = target_dir + 'meeting.mp4'
+            slideshow = temp_dir + 'slideshow.mp4'
+            try:            
+                print >> sys.stderr, "Creating presentation's .Mp4 video..."
+                print >> sys.stderr, "Slideshow"
+                create_slideshow(dictionary, length, slideshow, bbb_version)
+                print >> sys.stderr, "audio"
+                ffmpeg.trim_audio_start(dictionary, length, audio, audio_trimmed)
+                print >> sys.stderr, "Slideshow + audio"
+                ffmpeg.mux_slideshow_audio(slideshow, audio_trimmed, result)
+
+                serve_webcams()
+                # zipdir('./download/')
+                copy_mp4(result, source_dir + meetingId + '_presentation.mp4')            
+                print >> sys.stderr, "Presentation's Mp4 Creation Done"
+            except:                
+                print >> sys.stderr, "Presentation's Mp4 Creation Failed"
+        else:
+            print >> sys.stderr, "Presentation record already exists: "+source_dir+ meetingId + '_presentation.mp4'
+
+        if not video_exists(source_dir +meetingId + '_cams.mp4'):    
+            try:                    
+                print >> sys.stderr, "Converting Webcam to .mp4..."
+                ffmpeg.webm_to_mp4(source_dir + "video/webcams.webm",source_dir + meetingId +'_cams.mp4')
+                print >> sys.stderr, "Webcams' Mp4 Creation Done"
+            except:
+                print >> sys.stderr, "Webcams' Mp4 Creation Failed"                                
+        else:
+            print >> sys.stderr, "Webcam record already exists: "+source_dir+meetingId +"_cams.mp4"
+
+        if not video_exists(source_dir + meetingId + '_overlayed.mp4'): 
+            if (video_exists(source_dir + meetingId + '_presentation.mp4') and video_exists(source_dir + meetingId +'_cams.mp4')):   
+                try:                    
+                    print >> sys.stderr, "Overlayig Presentation and webcams..."
+                    ffmpeg.overlay_video(source_dir + meetingId + '_presentation.mp4',source_dir + meetingId +'_cams.mp4',source_dir +meetingId + '_overlayed.mp4')
+                    print >> sys.stderr, "Overlaying is done"
+                except:                
+                    print >> sys.stderr, "Overlaying is Failed"              
+            else:
+                print >> sys.stderr, "Overlaying is not possible" 
+        else:
+            print >> sys.stderr, "Webcam record already exists: "+meetingId + '_overlayed.mp4'
     finally:
         print >> sys.stderr, "Cleaning up temp files..."
         cleanup()
-        print >> sys.stderr, "Done"
+        print >> sys.stderr, "Process finished"
+
 
 
 if __name__ == "__main__":

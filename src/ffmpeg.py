@@ -4,8 +4,8 @@ __author__ = 'CreateWebinar.com'
 import os
 import shutil
 
-# FFMPEG = 'ffmpeg'
-FFMPEG = '/opt/ffmpeg/ffmpeg'
+FFMPEG = 'ffmpeg'
+# FFMPEG = '/opt/ffmpeg/ffmpeg'
 # FFMPEG = '/root/bin/ffmpeg'
 VID_ENCODER = 'libx264'
 
@@ -121,5 +121,9 @@ def webm_to_mp4(webm_file, mp4_file):
 
 def audio_to_video(audio_file, image_file, video_file):
     command = '%s -loop 1 -i %s -i %s -c:v libx264 -tune stillimage -c:a libfdk_aac -pix_fmt yuv420p -shortest %s' % (
-    FFMPEG, image_file, audio_file, video_file)
+    FFMPEG, image_file, audio_file, video_file)1'   
+    os.system(command)
+
+def overlay_video(video_file1,ovelay_file,output_name):
+    command = '%s -i %s -i %s -b:v 1M -filter_complex "[1:v]scale=320:240 [ovrl],  [0:v][ovrl]overlay= main_w - (overlay_w + 10) :  main_h-(overlay_h +10)" %s -y' % (FFMPEG,video_file1,ovelay_file,output_name)
     os.system(command)
