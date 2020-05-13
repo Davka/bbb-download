@@ -14,10 +14,7 @@ apt-get install -y python
 # Install additional libs need to convertation process
 apt-get install -y curl libsdl2-mixer-2.0-0 libsdl2-image-2.0-0 libsdl2-2.0-0 libva-x11-1 libva-drm1 libfdk-aac-dev
 
-# Create log directory
-mkdir -p /var/log/bigbluebutton/download
-chown tomcat7:tomcat7 /var/log/bigbluebutton/download
-chmod -R go+rw /var/log/bigbluebutton/download/
+
 
 # Copy ffmpeg to /opt/ffmpeg folder
 mkdir -p /opt/ffmpeg
@@ -35,3 +32,10 @@ cp src/*.py /usr/local/bigbluebutton/core/scripts/post_publish
 
 # Copy ruby script that controlls the download process
 cp src/*.rb /usr/local/bigbluebutton/core/scripts/post_publish
+
+
+# Create log directory
+# It will fail if tomcat is not been used but will setup the recording correctly, but without logs.
+mkdir -p /var/log/bigbluebutton/download
+chown tomcat7:tomcat7 /var/log/bigbluebutton/download
+chmod -R go+rw /var/log/bigbluebutton/download/
