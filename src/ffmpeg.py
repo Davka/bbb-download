@@ -121,7 +121,7 @@ def webm_to_mp4(webm_file, mp4_file):
 
 def audio_to_video(audio_file, image_file, video_file):
     command = '%s -loop 1 -i %s -i %s -c:v libx264 -tune stillimage -c:a libfdk_aac -pix_fmt yuv420p -shortest %s' % (
-    FFMPEG, image_file, audio_file, video_file)1'   
+    FFMPEG, image_file, audio_file, video_file)
     os.system(command)
 
 def overlay_video(video_file1,ovelay_file,output_name):
